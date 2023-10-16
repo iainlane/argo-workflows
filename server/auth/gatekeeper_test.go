@@ -90,8 +90,24 @@ func TestServer_GetWFClient(t *testing.T) {
 			},
 			Secrets: []corev1.ObjectReference{{Name: "azp-secret"}},
 		},
+		&corev1.ServiceAccount{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "federated-claims-sa", Namespace: "my-ns",
+				Annotations: map[string]string{
+					common.AnnotationKeyRBACRule:           "federated_claims != nil && federated_claims['connector_id'] == 'github-actions' && federated_claims['user_id'] startsWith 'repo:myorg/myrepo'",
+					common.AnnotationKeyRBACRulePrecedence: "3",
+				},
+			},
+			Secrets: []corev1.ObjectReference{{Name: "federated-claims-secret"}},
+		},
 		&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Name: "azp-secret", Namespace: "my-ns"},
+			Data: map[string][]byte{
+				"token": {},
+			},
+		},
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "federated-claims-secret", Namespace: "my-ns"},
 			Data: map[string][]byte{
 				"token": {},
 			},
@@ -184,6 +200,30 @@ func TestServer_GetWFClient(t *testing.T) {
 	hook := &test.Hook{}
 	log.AddHook(hook)
 	defer log.StandardLogger().ReplaceHooks(nil)
+	t.Run("SSO+RBAC,federated-claim", func(t *testing.T) {
+		ssoIf := &ssomocks.Interface{}
+		ssoIf.On("Authorize", mock.Anything, mock.Anything).Return(&types.Claims{FederatedClaims: map[string]interface{}{
+			"connector_id": "github-actions",
+			"user_id":      "repo:myorg/myrepo:ref:refs/heads/main",
+		}}, nil)
+		ssoIf.On("IsRBACEnabled").Return(true)
+		g, err := NewGatekeeper(Modes{SSO: true}, clients, nil, ssoIf, clientForAuthorization, "my-ns", "my-ns", true, resourceCache)
+		if assert.NoError(t, err) {
+			ctx, err := g.Context(x("Bearer v2:whatever"))
+			if assert.NoError(t, err) {
+				assert.NotEqual(t, clients, GetWfClient(ctx))
+				assert.NotEqual(t, kubeClient, GetKubeClient(ctx))
+				claims := GetClaims(ctx)
+				if assert.NotNil(t, claims) {
+					assert.Equal(t, "github-actions", claims.FederatedClaims["connector_id"])
+					assert.Equal(t, "repo:myorg/myrepo:ref:refs/heads/main", claims.FederatedClaims["user_id"])
+					assert.Equal(t, "federated-claims-sa", claims.ServiceAccountName)
+					assert.Equal(t, "my-ns", claims.ServiceAccountNamespace)
+				}
+				assert.Equal(t, "federated-claims-sa", hook.LastEntry().Data["serviceAccount"])
+			}
+		}
+	})
 	t.Run("SSO+RBAC,precedence=1", func(t *testing.T) {
 		ssoIf := &ssomocks.Interface{}
 		ssoIf.On("Authorize", mock.Anything, mock.Anything).Return(&types.Claims{Groups: []string{"my-group", "other-group"}}, nil)
