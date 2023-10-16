@@ -10,6 +10,7 @@ import (
 
 type Claims struct {
 	jwt.Claims
+	AuthorizedParty         string                 `json:"azp,omitempty"`
 	Groups                  []string               `json:"groups,omitempty"`
 	Email                   string                 `json:"email,omitempty"`
 	EmailVerified           bool                   `json:"email_verified,omitempty"`

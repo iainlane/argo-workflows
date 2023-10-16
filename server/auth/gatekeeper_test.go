@@ -80,6 +80,22 @@ func TestServer_GetWFClient(t *testing.T) {
 			},
 			Secrets: []corev1.ObjectReference{{Name: "user-secret"}},
 		},
+		&corev1.ServiceAccount{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "azp-sa", Namespace: "my-ns",
+				Annotations: map[string]string{
+					common.AnnotationKeyRBACRule:           "azp == 'my-azp'",
+					common.AnnotationKeyRBACRulePrecedence: "2",
+				},
+			},
+			Secrets: []corev1.ObjectReference{{Name: "azp-secret"}},
+		},
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "azp-secret", Namespace: "my-ns"},
+			Data: map[string][]byte{
+				"token": {},
+			},
+		},
 		&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Name: "my-secret", Namespace: "my-ns"},
 			Data: map[string][]byte{
@@ -284,6 +300,19 @@ func TestServer_GetWFClient(t *testing.T) {
 			if assert.NoError(t, err) {
 				assert.Equal(t, "my-other-sa", hook.LastEntry().Data["serviceAccount"])
 				assert.Equal(t, "my-other-sa", GetClaims(ctx).ServiceAccountName)
+			}
+		}
+	})
+	t.Run("SSO+RBAC,azp", func(t *testing.T) {
+		ssoIf := &ssomocks.Interface{}
+		ssoIf.On("Authorize", mock.Anything, mock.Anything).Return(&types.Claims{AuthorizedParty: "my-azp"}, nil)
+		ssoIf.On("IsRBACEnabled").Return(true)
+		g, err := NewGatekeeper(Modes{SSO: true}, clients, nil, ssoIf, clientForAuthorization, "my-ns", "my-ns", true, resourceCache)
+		if assert.NoError(t, err) {
+			ctx, err := g.Context(x("Bearer v2:whatever"))
+			if assert.NoError(t, err) {
+				assert.Equal(t, "azp-sa", hook.LastEntry().Data["serviceAccount"])
+				assert.Equal(t, "azp-sa", GetClaims(ctx).ServiceAccountName)
 			}
 		}
 	})

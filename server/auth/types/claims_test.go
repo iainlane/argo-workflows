@@ -24,24 +24,26 @@ func TestUnmarshalJSON(t *testing.T) {
 	}{
 		{
 			description:     "unmarshal valid data",
-			data:            `{"user_tz":"America\/Chicago","sub":"test-user@argoproj.github.io","user_locale":"en","idp_name":"UserNamePassword","user.tenant.name":"test-user","onBehalfOfUser":true,"idp_guid":"UserNamePassword","amr":["USERNAME_PASSWORD"],"iss":"https:\/\/identity-service.argoproj.github.io","user_tenantname":"test-user","client_id":"tokenGenerator","user_isAdmin":true,"sub_type":"user","scope":"","client_tenantname":"argo-proj","region_name":"us1","user_lang":"en","userAppRoles":["Authenticated","Global Viewer","Identity Domain Administrator"],"exp":1626527469,"iat":1626467469,"client_guid":"adsf34534645654653454","client_name":"tokenGenerator","idp_type":"LOCAL","tenant":"test-user23523423","jti":"345sd435d454356","ad_groups":["argo_admin", "argo_readonly"],"gtp":"jwt","user_displayname":"Test User","sub_mappingattr":"userName","primTenant":true,"tok_type":"AT","ca_guid":"test-ca_guid","aud":["example-aud"],"user_id":"8948923893458945234","clientAppRoles":["Authenticated Client","Cross Tenant"],"tenant_iss":"https:\/\/identiy-service.argoproj.github.io"}`,
+			data:            `{"user_tz":"America\/Chicago","sub":"test-user@argoproj.github.io","user_locale":"en","idp_name":"UserNamePassword","user.tenant.name":"test-user","onBehalfOfUser":true,"idp_guid":"UserNamePassword","amr":["USERNAME_PASSWORD"],"iss":"https:\/\/identity-service.argoproj.github.io","user_tenantname":"test-user","client_id":"tokenGenerator","user_isAdmin":true,"sub_type":"user","scope":"","client_tenantname":"argo-proj","region_name":"us1","user_lang":"en","userAppRoles":["Authenticated","Global Viewer","Identity Domain Administrator"],"exp":1626527469,"iat":1626467469,"client_guid":"adsf34534645654653454","client_name":"tokenGenerator","idp_type":"LOCAL","tenant":"test-user23523423","jti":"345sd435d454356","ad_groups":["argo_admin", "argo_readonly"],"gtp":"jwt","user_displayname":"Test User","sub_mappingattr":"userName","primTenant":true,"tok_type":"AT","ca_guid":"test-ca_guid","aud":["example-aud", "some-azp"],"azp":"some-azp","user_id":"8948923893458945234","clientAppRoles":["Authenticated Client","Cross Tenant"],"tenant_iss":"https:\/\/identiy-service.argoproj.github.io"}`,
 			customClaimName: "ad_groups",
 			expectedErr:     nil,
 			expectedClaims: &Claims{
 				Claims: jwt.Claims{
 					ID:        "345sd435d454356",
-					Audience:  jwt.Audience{"example-aud"},
+					Audience:  jwt.Audience{"example-aud", "some-azp"},
 					Issuer:    "https://identity-service.argoproj.github.io",
 					Subject:   "test-user@argoproj.github.io",
 					Expiry:    &testExpiry,
 					NotBefore: nil,
 					IssuedAt:  &testissuedAt,
 				},
+				AuthorizedParty:    "some-azp",
 				ServiceAccountName: "",
 				RawClaim: map[string]interface{}{
 					"ad_groups":         []interface{}{"argo_admin", "argo_readonly"},
 					"amr":               []interface{}{"USERNAME_PASSWORD"},
-					"aud":               []interface{}{"example-aud"},
+					"aud":               []interface{}{"example-aud", "some-azp"},
+					"azp":               "some-azp",
 					"clientAppRoles":    []interface{}{"Authenticated Client", "Cross Tenant"},
 					"userAppRoles":      []interface{}{"Authenticated", "Global Viewer", "Identity Domain Administrator"},
 					"ca_guid":           "test-ca_guid",
